@@ -1,0 +1,26 @@
+# Ignorer les dépendances Node.js
+node_modules/
+
+# Ignorer les fichiers Electron générés
+dist/
+out/
+build/
+
+# Ignorer les logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignorer les fichiers de configuration spécifiques à l'utilisateur
+.env
+.DS_Store
+
+# Ignorer les fichiers système
+Thumbs.db
+.vscode/
+
+# Ignorer le dossier img
+img/
+
+# Ignorer le fichier text-history.json
+text-history.json
