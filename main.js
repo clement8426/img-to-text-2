@@ -16,7 +16,7 @@ app.on('ready', () => {
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
-
+            webviewTag: true,
         },
     });
 
@@ -42,36 +42,30 @@ app.on('ready', () => {
         });
     });
 
-    // Capture de la sélection avec déplacement en bas à droite
     ipcMain.on('capture-selection', async (event, { x, y, width, height }) => {
-        const originalBounds = mainWindow.getBounds(); // Sauvegarder la position et taille actuelles
-        const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize; // Taille de l'écran
+        const originalBounds = mainWindow.getBounds();
+        const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 
         try {
             console.log(`Coordonnées reçues : x=${x}, y=${y}, width=${width}, height=${height}`);
 
-            // Étape 1 : Déplacer en bas à droite et réduire à 0x0
             mainWindow.setBounds({
-                x: screenWidth - 1, // Positionner à droite
-                y: screenHeight - 1, // Positionner en bas
+                x: screenWidth - 1,
+                y: screenHeight - 1,
                 width: 0,
                 height: 0,
             });
 
-            // Pause pour garantir le déplacement effectif avant la capture
             await new Promise(resolve => setTimeout(resolve, 100));
 
-            // Créer le dossier `img` s'il n'existe pas
             if (!fs.existsSync(imgFolderPath)) {
                 fs.mkdirSync(imgFolderPath, { recursive: true });
             }
 
-            // Générer un nom de fichier unique
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
             const fileName = `capture-${timestamp}.png`;
             const outputPath = path.join(imgFolderPath, fileName);
 
-            // Capture et découpe
             const imgBuffer = await screenshot({ format: 'png' });
             await sharp(imgBuffer)
                 .extract({ left: Math.floor(x), top: Math.floor(y), width: Math.floor(width), height: Math.floor(height) })
@@ -79,16 +73,14 @@ app.on('ready', () => {
 
             console.log(`Image capturée et enregistrée : ${outputPath}`);
 
-            // Étape 3 : Restaurer la fenêtre après la capture
-            mainWindow.setBounds(originalBounds); // Restaurer les dimensions et position d'origine
-            mainWindow.show(); // Réafficher la fenêtre
+            mainWindow.setBounds(originalBounds);
+            mainWindow.show();
 
             mainWindow.webContents.send('capture-done', { success: true, path: outputPath });
         } catch (err) {
             console.error('Erreur lors de la capture :', err);
 
-            // Toujours restaurer la fenêtre en cas d'erreur
-            mainWindow.setBounds(originalBounds); // Restaurer les dimensions et position
+            mainWindow.setBounds(originalBounds);
             mainWindow.show();
 
             mainWindow.webContents.send('capture-done', { success: false, error: err.message });
@@ -103,6 +95,23 @@ app.on('ready', () => {
             console.error('Erreur lors de l\'analyse avec Tesseract :', err);
             throw err;
         }
+    });
+
+    ipcMain.handle('upload-image', async (event, fileName, imageBuffer) => {
+      try {
+          if (!fs.existsSync(imgFolderPath)) {
+              fs.mkdirSync(imgFolderPath, { recursive: true });
+          }
+
+          const outputPath = path.join(imgFolderPath, fileName);
+          fs.writeFileSync(outputPath, Buffer.from(imageBuffer));
+
+          console.log(`Image sauvegardée avec succès : ${outputPath}`);
+          return { success: true, filePath: outputPath };
+      } catch (err) {
+          console.error("Erreur lors de l'upload de l'image :", err);
+          return { success: false, error: err.message };
+      }
     });
 
     ipcMain.handle('load-history', async () => {
@@ -120,25 +129,20 @@ app.on('ready', () => {
 
     ipcMain.handle('save-history', async (event, newHistory) => {
         try {
-            // Charger l'historique existant si nécessaire
             let history = [];
             if (fs.existsSync(historyFilePath)) {
                 history = JSON.parse(fs.readFileSync(historyFilePath, 'utf8'));
                 history = Array.isArray(history) ? history : [];
             }
 
-            // Si `newHistory` est un tableau, remplacer entièrement l'historique
             if (Array.isArray(newHistory)) {
                 history = newHistory;
             } else if (typeof newHistory === 'object' && newHistory !== null) {
-                // Sinon, ajouter un nouvel élément
                 history.unshift(newHistory);
             }
 
-            // Filtrer les entrées vides ou invalides
             history = history.filter(item => item && typeof item === 'object' && item.text);
 
-            // Sauvegarder le nouvel historique
             fs.writeFileSync(historyFilePath, JSON.stringify(history, null, 2), 'utf8');
             return true;
         } catch (err) {

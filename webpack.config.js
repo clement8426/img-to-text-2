@@ -18,6 +18,9 @@ module.exports = {
     },
     resolve: {
         extensions: ['.js', '.jsx'],
+        fallback: {
+            buffer: require.resolve('buffer/'), // Ajout du polyfill pour buffer
+        },
     },
     devServer: {
         static: {
